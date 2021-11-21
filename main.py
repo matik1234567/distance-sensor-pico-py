@@ -30,6 +30,8 @@ PULSE_FREQUENCY = 0
 PROGRAMMING = False
 
 yellow_led.low()
+green_led.low()
+red_led.low()
 
 def getCurrentTemp():
     global sensor_temp, conversion_factor
@@ -112,12 +114,13 @@ def computeDistance():
 def ledThread():
     global GREEN, RED, PULSE, PULSE_FREQUENCY, green_led, red_led, PROGRAMMING
     while True:
-        while PROGRAMMING:
-            pulseLong()
+        if PROGRAMMING:
+            utime.sleep_ms(1000)
+            continue
         if TEMP_DISPLAY:
             green_led.low()
             red_led.low()
-            utime.sleep_ms(100)
+            utime.sleep_ms(1000)
         else:
             freq = int(PULSE_FREQUENCY)
             if RED:
@@ -143,35 +146,87 @@ def ledThread():
 
 _thread.start_new_thread(ledThread, ())
 
+def get_digit(num):
+    is_first = False
+    count = 0
+    for n in range(0,  len(num)):
+        if n == 0  and num[0] == 0:
+            is_first = True
+        if is_first:
+            if num[n] == 0:
+                count += 1
+            else:
+                return count
+        else:
+            if num[n] == 1:
+                count += 1
+            else:
+                if count == 5:
+                    return 0
+                else:
+                    count += 5
+                    return count
+    return 0
+                
 def programming():
     global PROGRAMMING
     PROGRAMMING = True
     digits_count = 0
     inputs = 0
-    short = True
+    long = False
+    short = False
+    oninput = False
+    utime.sleep_ms(1500)
     green_led.low()
     red_led.low()
-    utime.sleep_ms(2000)
+    yellow_led.high()
+    nums = []
+    num = []
+    button_start = False
+    if button.value():
+        button_start = True
     while digits_count < 3:
+        if button_start:
+            if not button.value():
+                button_start = False
+            continue
         if button.value():
-            if short:
-                short = False
+            oninput = True
+            if not short:
+                short = True
                 green_led.high()
             else:
+                long = True
                 red_led.high()
-        else:
-            if short:
-                print('short')
-            else:
+        elif oninput:
+            oninput = False
+            if long:
                 print('long')
-            short = True
+                num.append(1)
+            else:
+                print('short')
+                num.append(0)
+            long = False
+            short = False
             inputs += 1
             green_led.low()
             red_led.low()
             if inputs == 5:
                 digits_count += 1
                 inputs = 0
+                nums.append(get_digit(num))
+                print(nums)
+                yellow_led.low()
+                utime.sleep_ms(500)
+                yellow_led.high()
+                utime.sleep_ms(500)
+                yellow_led.low()
+                utime.sleep_ms(500)
+                yellow_led.high()
+                num.clear()
         utime.sleep_ms(1000)
+    yellow_led.low()
+    PROGRAMMING = False
             
 while True:
     if button.value():
