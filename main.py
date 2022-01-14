@@ -3,12 +3,13 @@ import utime
 import _thread
 
 
-pulse = Pin(26, Pin.OUT)
-receiver = Pin(18, Pin.IN, Pin.PULL_DOWN)
-red_led = Pin(15, Pin.OUT)
-green_led = Pin(14, Pin.OUT)
-yellow_led = Pin(19, Pin.OUT)
-button = Pin(2, Pin.IN, Pin.PULL_DOWN)
+pulse = Pin(7, Pin.OUT)
+receiver = Pin(13, Pin.IN, Pin.PULL_DOWN)
+
+redLed1 = Pin(16, Pin.OUT)
+greenLed1 = Pin(17, Pin.OUT)
+redLed2 = Pin(18, Pin.OUT)
+greenLed2 = Pin(12, Pin.OUT)
 
 sensor_temp = machine.ADC(4)
 conversion_factor = 3.3 / (65535)
@@ -17,74 +18,67 @@ SpeedOfSound = 0.344
 reading = sensor_temp.read_u16() * conversion_factor
 temperature = 27 - (reading - 0.706)/0.001721
 
+#matrix keypad init
+col_list=[19,20,21]
+row_list=[22,26,27,28]
+for x in range(0,4):
+    row_list[x]=Pin(row_list[x], Pin.OUT)
+    row_list[x].value(1)
 
-MIN_GREEN = 1500.0
-MIN_BOTH = 400.0
-MIN_NONE = 300.0
-MIN_RED = 0.0
+for x in range(0,3):
+    col_list[x] = Pin(col_list[x], Pin.IN, Pin.PULL_UP)
+
+key_map=[["#","0","*"],\
+        ["9","8","7"],\
+        ["6","5","4"],\
+        ["3","2","1"]]
+
+MIN_GREEN = 0
+MIN_BOTH = 0
+MIN_NONE = 0
+MIN_RED = 0
 
 GREEN = False
 RED = False
 PULSE = False
 PULSE_FREQUENCY = 0
 PROGRAMMING = False
+TEMP_DISPLAY = False
 
-yellow_led.low()
-green_led.low()
-red_led.low()
-
+def readSettings():
+    global MIN_GREEN, MIN_BOTH, MIN_NONE, MIN_RED
+    print("load settings")
+    file = open("settings.txt","r+")
+    lines = file.readlines()
+    MIN_GREEN = float(lines[0][:-1])
+    MIN_BOTH = float(lines[1][:-1])
+    MIN_NONE = float(lines[2][:-1])
+    MIN_RED = float(lines[3][:-1])
+    print(MIN_GREEN, MIN_BOTH, MIN_NONE, MIN_RED)
+    file.close()
+    
+def saveSettings(values):
+    print("save settings")
+    f = open("settings.txt","w")
+    f.close()
+    file = open("settings.txt","w+")
+    new_settings = []
+    for v in values:
+        str_value = ""
+        for n in v:
+            str_value += str(n)
+        new_settings.append(str_value)
+    for s in new_settings:
+        file.write(s+"\n")
+    file.close()
+    readSettings()
+    
 def getCurrentTemp():
     global sensor_temp, conversion_factor
     reading = sensor_temp.read_u16() * conversion_factor
     temperature = 27 - (reading - 0.706)/0.001721
     return temperature
 
-def pulseShort():
-    global yellow_led
-    yellow_led.high()
-    utime.sleep_ms(200)
-    yellow_led.low()
-    utime.sleep_ms(1000)
-
-def pulseLong():
-    global yellow_led
-    yellow_led.high()
-    utime.sleep_ms(1000)
-    yellow_led.low()
-    utime.sleep_ms(1000)
-
-TEMP_DISPLAY = False
-def displayMorseTemperature():
-    global TEMP_DISPLAY
-    if TEMP_DISPLAY:
-        return
-    TEMP_DISPLAY = True
-    temp_str = str(round(getCurrentTemp(), 1))
-    print(temp_str)
-    #code
-    for num in temp_str:
-        if num == '.':
-            continue
-        else:
-            num_i = int(num)
-            if num_i <= 5:
-                for i in range(0, 5):
-                    if i < num_i:
-                        pulseShort()
-                    else:
-                        pulseLong()
-            else:
-                for i in range(0, 5):
-                    if i < num_i - 5:
-                        pulseLong()
-                    else:
-                        pulseShort()
-                    
-    
-    #end code
-    TEMP_DISPLAY = False
-
-    
 def computeDistance():
     pulse.low()
     utime.sleep_us(20)
@@ -93,6 +87,9 @@ def computeDistance():
     pulse.low()
     exitLoop = False
     loopcount = 0
+    delaytime = 0
+    receivetime = 0
+    
     while receiver.value() == 0 and exitLoop == False:
         loopcount = loopcount + 1
         delaytime = utime.ticks_us()
@@ -109,150 +106,124 @@ def computeDistance():
     else:
         #distance = ((receivetime - delaytime) * ((SpeedOfSound + (0.6 * temperature)) / 1000)) / 2
         distance = ((receivetime - delaytime) * SpeedOfSound) / 2
-        return distance
+        return distance / 10
 
 def ledThread():
-    global GREEN, RED, PULSE, PULSE_FREQUENCY, green_led, red_led, PROGRAMMING
+    global GREEN, RED, PULSE, PULSE_FREQUENCY, green_led, red_led, TEMP_DISPLAY, PROGRAMMING
     while True:
         if PROGRAMMING:
+            redLed1.low()
+            redLed2.low()
+            greenLed1.low()
             utime.sleep_ms(1000)
             continue
-        if TEMP_DISPLAY:
-            green_led.low()
-            red_led.low()
-            utime.sleep_ms(1000)
         else:
             freq = int(PULSE_FREQUENCY)
             if RED:
                 if PULSE:
-                    red_led.high()
+                    redLed1.high()
+                    redLed2.high()
                     utime.sleep_ms(freq)
-                    red_led.low()
+                    redLed1.low()
+                    redLed2.low()
                     utime.sleep_ms(freq)
                 else:
-                     red_led.high()
+                     redLed1.high()
+                     redLed2.high()
             else:
-                red_led.low()
+                redLed1.low()
+                redLed2.low()
             if GREEN:
                 if PULSE:
-                    green_led.high()
+                    greenLed1.high()
+                    greenLed2.high()
                     utime.sleep_ms(freq)
-                    green_led.low()
+                    greenLed1.low()
+                    greenLed2.low()
                     utime.sleep_ms(freq)
                 else:
-                     green_led.high()
+                     greenLed1.high()
+                     greenLed2.high()
             else:
-                green_led.low()
+                greenLed1.low()
+                greenLed2.low()
+                
 
+def keypadRead(cols,rows):
+    for r in rows:
+        r.value(0)
+        result=[cols[0].value(),cols[1].value(),cols[2].value()]
+        if min(result)==0:
+            key=key_map[int(rows.index(r))][int(result.index(0))]
+            r.value(1) # manages key keept pressed
+            return(key)
+        r.value(1)
+    
+def programmingMode():
+    global PROGRAMMING, greenLed2
+    PROGRAMMING = True
+    utime.sleep_ms(500)
+    greenLed2.high()
+    utime.sleep_ms(500)
+    greenLed2.low()
+    readValue = False
+    valuesTemp = []
+    valuesReal = []
+    valuesCount = 0
+    while True:
+        if valuesCount == 4:
+            break
+        key=keypadRead(col_list, row_list)
+        if key != None:
+            readValue = True
+            greenLed2.high()
+            readKey = key
+        else:
+            if readValue:
+                if readKey == '#':
+                    valuesCount += 1
+                    valuesReal.append(valuesTemp.copy())
+                    valuesTemp.clear()
+                else:
+                    valuesTemp.append(readKey)
+            readValue = False
+            greenLed2.low()
+        utime.sleep_ms(50)
+    print(valuesReal)
+    saveSettings(valuesReal)
+    for i in range(0, 3):
+        greenLed2.high()
+        utime.sleep_ms(200)
+        greenLed2.low()
+        utime.sleep_ms(200)
+    PROGRAMMING = False
+
+#init program parameters
+readSettings()
 _thread.start_new_thread(ledThread, ())
 
-def get_digit(num):
-    is_first = False
-    count = 0
-    for n in range(0,  len(num)):
-        if n == 0  and num[0] == 0:
-            is_first = True
-        if is_first:
-            if num[n] == 0:
-                count += 1
-            else:
-                return count
-        else:
-            if num[n] == 1:
-                count += 1
-            else:
-                if count == 5:
-                    return 0
-                else:
-                    count += 5
-                    return count
-    return 0
-                
-def programming():
-    global PROGRAMMING
-    PROGRAMMING = True
-    digits_count = 0
-    inputs = 0
-    long = False
-    short = False
-    oninput = False
-    utime.sleep_ms(1500)
-    green_led.low()
-    red_led.low()
-    yellow_led.high()
-    nums = []
-    num = []
-    button_start = False
-    if button.value():
-        button_start = True
-    while digits_count < 3:
-        if button_start:
-            if not button.value():
-                button_start = False
-            continue
-        if button.value():
-            oninput = True
-            if not short:
-                short = True
-                green_led.high()
-            else:
-                long = True
-                red_led.high()
-        elif oninput:
-            oninput = False
-            if long:
-                print('long')
-                num.append(1)
-            else:
-                print('short')
-                num.append(0)
-            long = False
-            short = False
-            inputs += 1
-            green_led.low()
-            red_led.low()
-            if inputs == 5:
-                digits_count += 1
-                inputs = 0
-                nums.append(get_digit(num))
-                print(nums)
-                yellow_led.low()
-                utime.sleep_ms(500)
-                yellow_led.high()
-                utime.sleep_ms(500)
-                yellow_led.low()
-                utime.sleep_ms(500)
-                yellow_led.high()
-                num.clear()
-        utime.sleep_ms(1000)
-    yellow_led.low()
-    PROGRAMMING = False
-            
 while True:
-    if button.value():
-        utime.sleep_ms(500)
-        if button.value():
-            print('programming')
-            programming()
-        else:
-            displayMorseTemperature()
-    elif TEMP_DISPLAY == False:
-        distance = computeDistance()
-        # print(distance, GREEN, RED, PULSE)
-        PULSE_FREQUENCY = distance / 4
-        if distance > MIN_GREEN:
-            GREEN = True
-            RED = False
-            PULSE = False
-        elif distance <= MIN_GREEN and distance > MIN_BOTH:
-            GREEN = True
-            RED = True
-            PULSE = True
-        elif distance <= MIN_BOTH and distance > MIN_NONE:
-            GREEN = False
-            RED = False
-        elif distance <= MIN_NONE and distance > MIN_RED:
-            GREEN = False
-            RED = True
-            PULSE = False
-    utime.sleep_ms(400)
+    key=keypadRead(col_list, row_list)
+    if key != None:
+        if key == '*':
+            programmingMode()
+    
+    distance = computeDistance()
+    print(distance)
+    PULSE_FREQUENCY = (distance*10) / 4
+    if distance > MIN_GREEN:
+        GREEN = True
+        RED = False
+        PULSE = False
+    elif distance <= MIN_GREEN and distance > MIN_BOTH:
+        GREEN = True
+        RED = True
+        PULSE = True
+    elif distance <= MIN_BOTH and distance > MIN_NONE:
+        GREEN = False
+        RED = False
+    elif distance <= MIN_NONE and distance > MIN_RED:
+        GREEN = False
+        RED = True
+        PULSE = False
+    utime.sleep_ms(300)
