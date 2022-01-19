@@ -2,7 +2,6 @@ from machine import Pin
 import utime
 import _thread
 
-
 pulse = Pin(7, Pin.OUT)
 receiver = Pin(13, Pin.IN, Pin.PULL_DOWN)
 
@@ -13,7 +12,6 @@ greenLed2 = Pin(12, Pin.OUT)
 
 sensor_temp = machine.ADC(4)
 conversion_factor = 3.3 / (65535)
-#SpeedOfSound = 331.5
 SpeedOfSound = 0.344
 reading = sensor_temp.read_u16() * conversion_factor
 temperature = 27 - (reading - 0.706)/0.001721
@@ -101,10 +99,9 @@ def computeDistance():
         if loopcount > 3000:
             exitLoop == True
         
-    if exitLoop == True:
+    if exitLoop == True: #signal failed
         return 0
     else:
-        #distance = ((receivetime - delaytime) * ((SpeedOfSound + (0.6 * temperature)) / 1000)) / 2
         distance = ((receivetime - delaytime) * SpeedOfSound) / 2
         return distance / 10
 
